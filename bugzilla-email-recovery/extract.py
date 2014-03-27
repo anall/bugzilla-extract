@@ -4,6 +4,7 @@ import mailbox
 import os
 import sqlite3
 import re
+import datetime
 
 url_regex = re.compile(r"http")
 whitespace_regex = re.compile(r"^\s*$")
@@ -84,6 +85,8 @@ def read_file(filename, conn):
 
     cursor = conn.cursor()
     subject_regex = re.compile(r"\[Bug (?P<bug_id>\d+)\] (?:New: )?(?P<subject>.+)$")
+    # strip off the timezone, because python datetime doesn't support tz
+    date_regex = re.compile(r" [+-]\d{4}$")
 
     mbox = mailbox.mbox(filename)
     for message in mbox:
@@ -96,16 +99,39 @@ def read_file(filename, conn):
             if not match:
                 print "Missed a match of the subject regex: %s" % subject_line
                 continue
-
             matched_subject = match.groupdict()
-            add_bug_args = [
-                matched_subject["bug_id"],
-                matched_subject["subject"],
-            ]
-            add_bug_args.extend([(message["X-Bugzilla-" + x]) for x in "Product Component Severity Priority Status Assigned-To".split()])
+            interesting_attributes = "Product Component Severity Priority Status Assigned-To".split()
 
-            # add the bug headers
-            cursor.execute("INSERT OR IGNORE INTO buginfo VALUES (?,?,?,?,?,?,?,?)", add_bug_args)
+            date_cleaned_text = date_regex.sub("", message["Date"])
+            date_received = datetime.datetime.strptime(date_cleaned_text, "%a, %d %b %Y %H:%M:%S")
+
+            cursor.execute("SELECT last_update from buginfo where bug_id = ?", (matched_subject["bug_id"], ))
+            last_updated = cursor.fetchone()
+
+            # we have an existing bug
+            if last_updated:
+                # bug that needs updating
+                if last_updated[0] < date_received.isoformat(" "):
+                    update_bug_args = [matched_subject["subject"]]
+                    update_bug_args.extend([(message["X-Bugzilla-" + x]) for x in interesting_attributes])
+                    update_bug_args.append(date_received)
+                    update_bug_args.append(matched_subject["bug_id"])
+
+                    cursor.execute("UPDATE buginfo SET subject=?, product=?, component=?, severity=?," +
+                                   " priority=?, status=?, assigned=?, last_update=?" +
+                                   " WHERE bug_id = ?", update_bug_args)
+                # bug that exists, but we have newer information (possibly merged from two data sources): ignore
+                else:
+                    pass
+            else:
+                add_bug_args = [
+                    matched_subject["bug_id"],
+                    matched_subject["subject"],
+                ]
+                add_bug_args.extend([(message["X-Bugzilla-" + x]) for x in interesting_attributes])
+                add_bug_args.append(date_received)
+
+                cursor.execute("INSERT INTO buginfo VALUES (?,?,?,?,?,?,?,?,?)", add_bug_args)
 
             for part in message.walk():
                 content_type = part.get_content_type()
@@ -114,6 +140,7 @@ def read_file(filename, conn):
                     if parsed is None:
                         print "Not a bugzilla comment; not handling (%s: %s)" \
                             % (filename, subject_line)
+                        pass
                     else:
                         add_comment_args = (matched_subject["bug_id"], parsed["comment_id"], message["X-Bugzilla-Who"], parsed["body"])
                         cursor.execute("INSERT OR IGNORE INTO comments VALUES (?,?,?,?)", add_comment_args)
@@ -151,6 +178,7 @@ if __name__ == "__main__":
                 read_file(user_input + "/" + filename, connection)
         elif os.path.isfile(user_input):
             read_file(user_input, get_connection())
-    except sqlite3.OperationalError:
+    except sqlite3.OperationalError, e:
+        print e
         print_db_setup()
         sys.exit(1)
