@@ -151,7 +151,10 @@ def read_file(filename, conn):
                     #    % (content_type, filename, subject_line)
                     continue
 
+        if counter % 100 == 0:
             conn.commit()
+
+    conn.commit()
 
 
 def get_connection():
