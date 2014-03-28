@@ -5,6 +5,7 @@ import os
 import sqlite3
 import re
 import datetime
+from progressbar import ProgressBar, Percentage, Bar
 
 url_regex = re.compile(r"http")
 whitespace_regex = re.compile(r"^\s*$")
@@ -89,7 +90,9 @@ def read_file(filename, conn):
     date_regex = re.compile(r" [+-]\d{4}$")
 
     mbox = mailbox.mbox(filename)
-    for message in mbox:
+    pbar = ProgressBar(widgets=[Percentage(), Bar(marker='0', left='[', right=']')], maxval=len(mbox))
+    pbar.start()
+    for (counter, message) in enumerate(mbox):
 
         message_type = message["X-Bugzilla-Type"]
         if interesting_messages[message_type]:
@@ -153,9 +156,6 @@ def read_file(filename, conn):
 
         if counter % 100 == 0:
             conn.commit()
-
-    conn.commit()
-
 
 def get_connection():
     return sqlite3.connect("data.db")
