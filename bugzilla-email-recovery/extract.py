@@ -7,6 +7,7 @@ import re
 import datetime
 import hashlib
 
+
 url_regex = re.compile(r"http")
 whitespace_regex = re.compile(r"^\s*$")
 bugzilla_change_table_regex = re.compile(r".* <.*> changed:$")
@@ -91,7 +92,8 @@ def read_file(filename, conn):
     date_regex = re.compile(r" [+-]\d{4}$")
 
     mbox = mailbox.mbox(filename)
-    for message in mbox:
+    sys.stderr.write("Processing %s\n" % filename)
+    for (counter, message) in enumerate(mbox):
 
         message_type = message["X-Bugzilla-Type"]
         if interesting_messages[message_type]:
@@ -140,7 +142,7 @@ def read_file(filename, conn):
                 if content_type == "text/plain":
                     parsed = parse_body(part.get_payload())
                     if parsed is None:
-                        #print "Not a bugzilla comment; not handling (%s: %s)" \
+                        # print "Not a bugzilla comment; not handling (%s: %s)" \
                         #    % (filename, subject_line)
                         pass
                     else:
@@ -155,8 +157,12 @@ def read_file(filename, conn):
                     #    % (content_type, filename, subject_line)
                     continue
 
+        if counter % 100 == 0:
             conn.commit()
+            sys.stderr.write(" ...%d\r" % counter)
 
+    conn.commit()
+    sys.stderr.write(" ...%d\n" % counter)
 
 def get_connection():
     return sqlite3.connect("data.db")
