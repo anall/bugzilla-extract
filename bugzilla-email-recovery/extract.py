@@ -5,12 +5,14 @@ import os
 import sqlite3
 import re
 import datetime
+import hashlib
 
 url_regex = re.compile(r"http")
 whitespace_regex = re.compile(r"^\s*$")
 bugzilla_change_table_regex = re.compile(r".* <.*> changed:$")
 horizontal_line_regex = re.compile(r"-------------------")
 comment_header_regex = re.compile(r"--- Comment #(\d+) from .+? ---$")
+footer_regex = re.compile(r"^-- $")
 
 
 def parse_body(body):
@@ -65,10 +67,10 @@ def parse_body(body):
         if state == STATE_BUGZILLA_COMMENT:
             pass
 
-    if state == STATE_BUGZILLA_COMMENT:
-        return {"body": "\n".join(output), "comment_id": comment_id}
-    else:
-        return None
+        if footer_regex.match(line):
+            break
+
+    return {"body": "\n".join(output), "comment_id": comment_id}
 
 
 def read_file(filename, conn):
@@ -138,12 +140,14 @@ def read_file(filename, conn):
                 if content_type == "text/plain":
                     parsed = parse_body(part.get_payload())
                     if parsed is None:
-                        print "Not a bugzilla comment; not handling (%s: %s)" \
-                            % (filename, subject_line)
+                        #print "Not a bugzilla comment; not handling (%s: %s)" \
+                        #    % (filename, subject_line)
                         pass
                     else:
-                        add_comment_args = (matched_subject["bug_id"], parsed["comment_id"], message["X-Bugzilla-Who"], parsed["body"])
-                        cursor.execute("INSERT OR IGNORE INTO comments VALUES (?,?,?,?)", add_comment_args)
+                        add_comment_args = (matched_subject["bug_id"], parsed["comment_id"],
+                                            message["X-Bugzilla-Who"], parsed["body"],
+                                            date_received, hashlib.md5(parsed["body"]).hexdigest())
+                        cursor.execute("INSERT OR IGNORE INTO comments VALUES (?,?,?,?,?,?)", add_comment_args)
                 else:
                     # multipart/alternative, text/html
                     # but we assume that content is available in text/plain so we ignore these
