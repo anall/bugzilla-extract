@@ -5,7 +5,7 @@ import os
 import sqlite3
 import re
 import datetime
-from progressbar import ProgressBar, Percentage, Bar
+
 
 url_regex = re.compile(r"http")
 whitespace_regex = re.compile(r"^\s*$")
@@ -90,8 +90,7 @@ def read_file(filename, conn):
     date_regex = re.compile(r" [+-]\d{4}$")
 
     mbox = mailbox.mbox(filename)
-    pbar = ProgressBar(widgets=[Percentage(), Bar(marker='0', left='[', right=']')], maxval=len(mbox))
-    pbar.start()
+    sys.stderr.write("Processing %s\n" % filename)
     for (counter, message) in enumerate(mbox):
 
         message_type = message["X-Bugzilla-Type"]
@@ -141,8 +140,8 @@ def read_file(filename, conn):
                 if content_type == "text/plain":
                     parsed = parse_body(part.get_payload())
                     if parsed is None:
-                        print "Not a bugzilla comment; not handling (%s: %s)" \
-                            % (filename, subject_line)
+                        # print "Not a bugzilla comment; not handling (%s: %s)" \
+                        #    % (filename, subject_line)
                         pass
                     else:
                         add_comment_args = (matched_subject["bug_id"], parsed["comment_id"], message["X-Bugzilla-Who"], parsed["body"])
@@ -156,6 +155,10 @@ def read_file(filename, conn):
 
         if counter % 100 == 0:
             conn.commit()
+            sys.stderr.write(" ...%d\r" % counter)
+
+    conn.commit()
+    sys.stderr.write(" ...%d\n" % counter)
 
 def get_connection():
     return sqlite3.connect("data.db")
