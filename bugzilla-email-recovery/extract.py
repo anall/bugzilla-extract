@@ -170,7 +170,7 @@ def read_file(filename, conn):
             (last_updated,status) = cursor.fetchone() or (None,None)
 
             # we have an existing bug
-            if last_updated or status == None:
+            if last_updated:
                 # bug that needs updating, and we have the data ( not 'request' type )
                 if last_updated < date_received.isoformat(" ") and message_type != "request":
                     update_bug_args = [matched_subject["subject"]]
