@@ -13,7 +13,7 @@ whitespace_regex = re.compile(r"^\s*$")
 bugzilla_change_table_regex = re.compile(r".* <.*> changed:$")
 horizontal_line_regex = re.compile(r"-------------------")
 comment_header_regex = re.compile(r"--- Comment #(\d+) from .+? ---$")
-footer_regex = re.compile(r"^-- $")
+footer_regex = re.compile(r"^--\s*$")
 
 
 def parse_body(body):
@@ -29,6 +29,9 @@ def parse_body(body):
     output = []
     comment_id = 0
     for line in lines:
+        if footer_regex.match(line):
+            break
+
         output.append(line)
 
         # we ignore everything before a line that starts with the bugzilla bug URL
@@ -67,9 +70,6 @@ def parse_body(body):
 
         if state == STATE_BUGZILLA_COMMENT:
             pass
-
-        if footer_regex.match(line):
-            break
 
     return {"body": "\n".join(output), "comment_id": comment_id}
 
@@ -110,12 +110,13 @@ def read_file(filename, conn):
             date_received = datetime.datetime.strptime(date_cleaned_text, "%a, %d %b %Y %H:%M:%S")
 
             cursor.execute("SELECT last_update,status from buginfo where bug_id = ?", (matched_subject["bug_id"], ))
-            (last_updated,status) = cursor.fetchone()
+
+            (last_updated,status) = cursor.fetchone() or (None,None)
 
             # we have an existing bug
             if last_updated or status == None:
                 # bug that needs updating, and we have the data ( not 'request' type )
-                if last_updated[0] < date_received.isoformat(" ") and message_type != "request":
+                if last_updated < date_received.isoformat(" ") and message_type != "request":
                     update_bug_args = [matched_subject["subject"]]
                     update_bug_args.extend([(message["X-Bugzilla-" + x]) for x in interesting_attributes])
                     update_bug_args.append(date_received)
