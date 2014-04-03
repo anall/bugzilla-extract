@@ -147,9 +147,13 @@ def read_file(filename, conn):
                         #    % (filename, subject_line)
                         pass
                     else:
+                        digest_source = parsed["body"]
+                        # Do not use actual comment body if we've got a comment id
+                        if ( parsed["comment_id"] != 0 ):
+                            digest_source = "___special_bug_%s_comment_%s" % ( matched_subject["bug_id"], parsed["comment_id"] )
                         add_comment_args = (matched_subject["bug_id"], parsed["comment_id"],
                                             message["X-Bugzilla-Who"], parsed["body"],
-                                            date_received, hashlib.md5(parsed["body"]).hexdigest())
+                                            date_received, hashlib.md5(digest_source).hexdigest())
                         cursor.execute("INSERT OR IGNORE INTO comments VALUES (?,?,?,?,?,?)", add_comment_args)
                 else:
                     # multipart/alternative, text/html
