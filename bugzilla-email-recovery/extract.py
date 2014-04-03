@@ -14,10 +14,11 @@ bugzilla_change_table_regex = re.compile(r".* <.*> changed:$")
 horizontal_line_regex = re.compile(r"-------------------")
 comment_header_regex = re.compile(r"--- Comment #(\d+) from .+? ---$")
 footer_regex = re.compile(r"^--\s*$")
+split_regex = re.compile(r"\r?\n")
 
 
 def parse_body(body):
-    lines = body.split('\n')
+    lines = split_regex.split(body)
 
     STATE_BEGIN = 1
     STATE_BETWEEN_SECTIONS = 2
@@ -79,7 +80,7 @@ def read_file(filename, conn):
         "newchanged": True,
         "changed": True,
         "new": True,
-        "request": True,    # patch/attachment flags
+        "request": False,    # patch/attachment flags
 
         "admin": False,
         "whine": False,
