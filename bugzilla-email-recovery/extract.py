@@ -87,7 +87,7 @@ def read_file(filename, conn):
     }
 
     cursor = conn.cursor()
-    subject_regex = re.compile(r"\[Bug (?P<bug_id>\d+)\] (?:New: )?(?P<subject>.+)$")
+    subject_regex = re.compile(r"\[Bug (?P<bug_id>\d+)\] (?:New: )?(?P<subject>.+?)(?: : \[Attachment (?P<attach_id>\d+)\] .+)?$")
     # strip off the timezone, because python datetime doesn't support tz
     date_regex = re.compile(r" [+-]\d{4}$")
 
@@ -109,13 +109,13 @@ def read_file(filename, conn):
             date_cleaned_text = date_regex.sub("", message["Date"])
             date_received = datetime.datetime.strptime(date_cleaned_text, "%a, %d %b %Y %H:%M:%S")
 
-            cursor.execute("SELECT last_update from buginfo where bug_id = ?", (matched_subject["bug_id"], ))
-            last_updated = cursor.fetchone()
+            cursor.execute("SELECT last_update,status from buginfo where bug_id = ?", (matched_subject["bug_id"], ))
+            (last_updated,status) = cursor.fetchone()
 
             # we have an existing bug
-            if last_updated:
-                # bug that needs updating
-                if last_updated[0] < date_received.isoformat(" "):
+            if last_updated or status == None:
+                # bug that needs updating, and we have the data ( not 'request' type )
+                if last_updated[0] < date_received.isoformat(" ") and message_type != "request":
                     update_bug_args = [matched_subject["subject"]]
                     update_bug_args.extend([(message["X-Bugzilla-" + x]) for x in interesting_attributes])
                     update_bug_args.append(date_received)
