@@ -29,7 +29,7 @@ def parse_body(body):
 
     state = STATE_BEGIN
     output = []
-    comment_id = 0
+    comment_id = -1
     is_security = False
     for line in lines:
         if footer_regex.match(line):
@@ -73,6 +73,8 @@ def parse_body(body):
 
                 if key == "Group" and value == "Security Issue":
                     is_security = True
+                if key == "Summary":
+                    comment_id = 0
             continue
 
         if state == STATE_BUGZILLA_CHANGE_TABLE_ROW:
@@ -152,8 +154,8 @@ def read_file(filename, conn):
                     else:
                         digest_source = parsed["body"]
                         # Do not use actual comment body if we've got a comment id
-                        if parsed["comment_id"] != 0:
-                            digest_source = "___special_bug_%s_comment_%s" % ( matched_subject["bug_id"], parsed["comment_id"] )
+                        if parsed["comment_id"] >= 0:
+                            digest_source = "___special_bug_%s_comment_%s" % (matched_subject["bug_id"], parsed["comment_id"])
                         add_comment_args = (matched_subject["bug_id"], parsed["comment_id"],
                                             message["X-Bugzilla-Who"], parsed["body"],
                                             date_received, hashlib.md5(digest_source.encode('utf-8')).hexdigest())
